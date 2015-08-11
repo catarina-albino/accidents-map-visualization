@@ -1,0 +1,159 @@
+﻿<html>
+<head>
+<title>AA-Maps Prototype</title>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="script/leaflet-0.7.1/leaflet.css" />
+<link rel="stylesheet" type="text/css" href="script/jqplot/jquery.jqplot.css" />
+<link rel="stylesheet" href="script/jquery-ui.css" />
+<link rel="stylesheet" href="script/leaflet.draw.css" />
+<link rel="stylesheet" href="script/leaflet.contextmenu.css" />
+
+<script type="text/javascript" src="script/leaflet-0.7.1/leaflet.js"></script>
+<script type="text/javascript" src="script/leaflet.draw-src.js"></script>
+<script src="script/jquery-1.9.1.min.js"></script>
+<script src="script/jquery-ui.js"></script>
+<script src="script/foundation/foundation.js"></script>
+<script src="script/foundation/foundation.slider.js"></script>
+<script type="text/javascript" src="script/jscolor/jscolor.js"></script>
+<link rel="icon" type="image/gif" href="favicon.ico">
+
+	<script id="pointVertexShader" type="x-shader/x-vertex">
+		attribute vec4 worldCoord;
+		attribute float aPointSize;
+		attribute vec4 aVertexColor;
+		uniform mat4 mapMatrix;
+		varying lowp vec4 vColor;
+
+		void main() {
+			// transform world coordinate by matrix uniform variable
+			gl_Position = (mapMatrix * worldCoord);
+			gl_PointSize = aPointSize;
+			vColor = aVertexColor;
+		}
+    </script>
+    
+	<script id="pointFragmentShader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform vec4 uColor;
+		varying lowp vec4 vColor;
+		uniform int isUniform;
+
+		void main() {
+			float border = 0.05;
+        	float radius = 0.5;
+        	float centerDist = length(gl_PointCoord - 0.5);
+			float alpha;
+
+        	// works for overlapping circles if blending is enabled
+			if (isUniform==1) {
+				alpha =  uColor[3] * step(centerDist, radius);
+				if (alpha < 0.1) discard;
+				gl_FragColor = vec4(uColor[0], uColor[1], uColor[2], alpha);
+			}
+			else {
+				alpha =  vColor[3] * step(centerDist, radius);
+				//if (alpha < 0.1) discard;
+				gl_FragColor = vec4(vColor[0], vColor[1], vColor[2], alpha);
+			}
+		}
+    </script>
+
+<script>
+		$(document).ready(function() {
+			init();
+		});
+</script>
+
+<script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=false"></script>
+<script src="script/leaflet-0.6.4/Google.js"></script>
+<script src="script/jquery.sparkline.js"></script>
+<script type="text/javascript" src="WebGLmapcomponent.js"></script>
+<script type="text/javascript" src="timeseriescomponent.js"></script>
+<script type="text/javascript" src="timeComponent.js"></script>
+
+<link rel="stylesheet" href="style.css"></link>
+
+</head>
+<body class="tundra">
+	<div id="buttons">
+		<a id="charts-button" class="button"
+			onclick="$('#timeseries').toggle();">Options</a> 
+			<select id="dataset">
+				<!--<option value="accidents_usa">Accidents in USA</option> -->
+				<!-- <option value="fires_portugal" selected>Forest Fires inPortugal</option> -->
+				<option value="accidents_portugal" selected>Accidents in Portugal</option>
+			</select> 
+	</div>
+
+	<div id="timeseries">
+	
+		<label for="colorOptions">Color Options</label>
+		<div id="colorOptions">
+			<label for="color_picker">Color:</label>
+			 <input class="color" id="color_picker" value="66ff00"></br>
+			<label for="op_calc">Opacity calculation:</label>
+			<select id="op_calc">
+				<option value="op_auto" id="s1" selected onclick="redrawOpacity(true)">Automatic</option>
+				<option value="op_max" id="s2" onclick="redrawOpacity(false)">IG Max</option>
+				<option value="aa" id="s3" onclick="redrawAAOpacity(true)">AA-Maps</option>
+			</select>
+			
+			<div id="slider">
+				<label for="range">Opacity</label>
+				<input id="opacity" type="range" min="0" max="1" value="0" step="0.1" onchange="changeOpacity(this.value)" disabled />
+				<span id="range">0.3</span>
+			</div>
+
+			
+		</div>
+		
+		Time Options
+		<div id="time">
+		<form id="time_form" action="date_filter.asp">
+			<label for="from">From: </label>
+			<input type="text" name="From" id="from" value="2007/01/01">
+			<label for="to">Until: </label>
+			<input type="text" name="Until" id="to" value="2012/01/01">
+		</form>
+		<form id="moment_form" action="">
+			<input type="radio" name="time_moment" id ="r1" value="all" onclick="changeTimeMoment()" checked>All events<br>
+			<input type="radio" name="time_moment" id="r2" value="daywise" onclick="changeTimeMoment()">By day
+		</form>
+		<p id="days">Number of days: </p>
+		<label for="time_range">Time range:</label>
+		<div id="time_slider">
+				</br>
+				<!-- <input id="curDate" type="range" min="0" max="" value="0" step="1" onchange="addDaysToDate(from.value,this.value)"/> -->
+				<span id="time_range"></span>
+			</div>
+		</div>
+
+		<div id="status-section">
+			<a id="refresh-button" class="button" onclick="getTimeSeries();">Show Events</a>
+			<a id="reset-button" class="button" onclick="clearPoints();">Reset Map</a></br>
+			
+			<div id="logArea">
+			<label for="log">Log info:</label>
+				<textarea id="log" rows="8" cols="35" readonly></textarea>
+			</div>
+		</div>
+
+	</div>
+
+	<div id="map"> </div>
+
+	<div id="saveForm" title="Save Time Series">
+		<p class="validateTips">All fields are required.</p>
+		<form>
+			<fieldset>
+				<label for="name">Region Name:</label> <input type="text"
+					name="filename" id="filename"
+					class="text ui-widget-content ui-corner-all"> <br /> <label
+					for="description">Description:</label> <input type="text"
+					name="description" id="description" value=""
+					class="text ui-widget-content ui-corner-all">
+			</fieldset>
+		</form>
+	</div>
+</body>
+</html>
