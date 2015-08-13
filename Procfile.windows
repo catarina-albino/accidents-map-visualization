@@ -1,1 +1,5 @@
+<<<<<<< HEAD
 web: java -cp target\classes;"target\dependency\*" server.Server
+=======
+web: java -cp target\classes;"target\dependency\*" server.Server.main
+>>>>>>> 47afeaf49dc25ab5edf134e4acef405887e117eb
