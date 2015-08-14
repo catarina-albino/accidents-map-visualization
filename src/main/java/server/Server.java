@@ -72,7 +72,9 @@ public class Server {
 	public static void main(final String[] args) {
 		TJWSEmbeddedJaxrsServer webServer = new TJWSEmbeddedJaxrsServer();
 		
-		webServer.setPort(Config.getConfigInt("server_port"));
+		int envVar = Integer.parseInt(System.getenv("PORT"));
+		//Config.getConfigInt("server_port") ||
+		webServer.setPort(envVar);
 		webServer.setRootResourcePath("/");
 		webServer.start();
 		
